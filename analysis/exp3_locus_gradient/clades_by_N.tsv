@@ -1,0 +1,5 @@
+clade	freq_all_trees	N50|busco	N100|busco	N200|busco	N400|busco	Nall|busco	N50|of_relaxed	N100|of_relaxed	N200|of_relaxed	N400|of_relaxed	Nall|of_relaxed	N50|of_strict	N100|of_strict	N200|of_strict	N400|of_strict	Nall|of_strict
+Nful,Ylip	0.8991935483870968	0.85	0.75	0.95	1.0	1.0	0.9	0.9	0.8	0.95	1.0	0.8	1.0	0.85	1.0	1.0
+Arub,Cgla,Egos,Huva,Klac,Lthe,Scer,Scra,Wano	0.7903225806451613	0.7	0.65	0.9	1.0	1.0	0.9	0.75	0.95	0.6	1.0	0.65	0.65	0.75	0.9	1.0
+Arub,Bino,Calb,Clus,Dhan,Kcap,Kpha,Opar,Ptan,Scra,Ssti	0.20967741935483872	0.3	0.35	0.1	0.0	0.0	0.1	0.25	0.05	0.4	0.0	0.35	0.35	0.25	0.1	0.0
+Nful,Slig	0.10080645161290322	0.15	0.25	0.05	0.0	0.0	0.1	0.1	0.2	0.05	0.0	0.2	0.0	0.15	0.0	0.0

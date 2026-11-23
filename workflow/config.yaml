@@ -1,0 +1,12 @@
+# Multiverse phylogenomics pilot (Saccharomycotina, 23 taxa)
+outgroup: Lsta
+n_loci: 50          # loci subsampled per orthology set (same N for all sets)
+seed: 42
+min_occupancy_relaxed: 20   # of 23 taxa, for relaxed orthology sets
+orthology: [of_strict, of_relaxed, busco]
+aligners:  [mafft, muscle, famsa]
+trimmers:  [none, gappyout, clipkit, bmge]
+gene_models: [LG, MFP]          # gene trees (for ASTRAL and gCF)
+concat_models: [LG, MFP, C20]   # concatenated supermatrix
+mset: "LG,WAG,JTT,Q.pfam,Q.yeast"
+mrate: "G4"   # ModelFinder chooses the exchangeability matrix (+F or not) with Gamma-4 rates

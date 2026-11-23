@@ -1,0 +1,8 @@
+component	R2	test	F	p_perm	marginal_R2_inference
+orthology	0.008589189958715202	nested pseudo-F vs subsamples (whole-subsample permutation)	0.1082535885167496	0.9511	
+subsample_within_orthology	0.5950742656479858	partial, reps permuted within orth x trim x inference		0.001	
+trimming	-0.0001423622645092614	partial		0.826	
+inference	-0.02239832961609683	partial		1.0	-0.02239832961609648
+residual_incl_interactions	0.41887723627390494				
+orthology x inference	0.04541847238435637				
+subsample x inference (beyond orth x inf)	0.33908527013952644				

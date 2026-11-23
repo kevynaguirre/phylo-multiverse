@@ -1,0 +1,102 @@
+# Multiverse phylogenomics: factorial crossing of defensible analytical decisions.
+# Step 0 (scripts/select_loci.py) must be run first to create results/loci/{orth}/*.fa
+import os, glob
+configfile: "workflow/config.yaml"
+ALN, TRIM = config["aligners"], config["trimmers"]
+# replicate locus subsamples (select_loci_reps.py): orthology wildcard becomes "{set}-r{k}"
+ORTH = ([f"{o}-r{r}" for o in config["orthology"] for r in config["replicates"]]
+        if config.get("replicates") is not None else config["orthology"])
+GM, CM = config["gene_models"], config["concat_models"]
+MSET = config["mset"] + " -mrate " + config["mrate"]
+BIN = os.environ.get("PHYLO_BIN", "")
+
+def loci(orth):
+    return sorted(os.path.basename(f)[:-3] for f in glob.glob(f"results/loci/{orth}/*.fa"))
+
+def gene_trees(w):
+    return [f"results/gt/{w.orth}/{w.aln}/{w.trim}/{w.gm}/{l}.treefile" for l in loci(w.orth)]
+
+rule all:
+    input:
+        expand("results/ctree/{orth}/{aln}/{trim}/{cm}.treefile", orth=ORTH, aln=ALN, trim=TRIM, cm=CM),
+        expand("results/ctree/{orth}/{aln}/{trim}/{cm}.cf.cf.stat", orth=ORTH, aln=ALN, trim=TRIM, cm=CM),
+        expand("results/astral/{orth}/{aln}/{trim}/{gm}.tre", orth=ORTH, aln=ALN, trim=TRIM, gm=GM)
+
+ALIGN_CMD = {
+    "mafft": "mafft --localpair --maxiterate 1000 --quiet --thread 1 {input} > {output}",   # L-INS-i
+    "muscle": "muscle -align {input} -output {output} -threads 1 2> /dev/null",  # MUSCLE v5
+    "famsa": "famsa -t 1 {input} {output} 2> /dev/null"}
+TRIM_CMD = {
+    "none": "cp {input} {output}",
+    "gappyout": "trimal -in {input} -out {output}.tmp -gappyout",
+    "clipkit": "clipkit {input} -m smart-gap -o {output}.tmp > /dev/null",
+    "bmge": "bmge -i {input} -t AA -of {output}.tmp > /dev/null"}
+
+rule align:
+    input: "results/loci/{orth}/{locus}.fa"
+    output: "results/aln/{orth}/{aln}/{locus}.fa"
+    wildcard_constraints: aln="mafft|muscle|famsa"
+    params: cmd=lambda w, input, output: ALIGN_CMD[w.aln].format(input=input, output=output)
+    shell: "{params.cmd}"
+
+rule trim:
+    input: "results/aln/{orth}/{aln}/{locus}.fa"
+    output: "results/trim/{orth}/{aln}/{trim}/{locus}.fa"
+    wildcard_constraints: trim="none|gappyout|clipkit|bmge"
+    params: cmd=lambda w, input, output: TRIM_CMD[w.trim].format(input=input, output=output)
+    shell:
+        "{params.cmd}; "
+        "if [ -f {output}.tmp ]; then python workflow/scripts/fix_fasta.py {input} {output}.tmp {output} && rm {output}.tmp; fi"
+
+rule gene_tree:
+    input: "results/trim/{orth}/{aln}/{trim}/{locus}.fa"
+    output: "results/gt/{orth}/{aln}/{trim}/{gm}/{locus}.treefile"
+    params:
+        pre=lambda w: f"results/gt/{w.orth}/{w.aln}/{w.trim}/{w.gm}/{w.locus}",
+        m=lambda w: "LG+G4" if w.gm == "LG" else f"MFP -mset {MSET}"
+    # --fast search for every gene tree (same setting across the whole multiverse);
+    # loci that fail (e.g. too few informative sites after trimming) leave an empty marker
+    shell:
+        "iqtree3 -s {input} -m {params.m} --fast -T 1 -seed 1 --prefix {params.pre} -quiet -redo > /dev/null 2>&1 || true; "
+        "touch {output}; rm -f {params.pre}.ckp.gz {params.pre}.mldist {params.pre}.bionj {params.pre}.model.gz {params.pre}.uniqueseq.phy"
+
+rule concat:
+    input: lambda w: [f"results/trim/{w.orth}/{w.aln}/{w.trim}/{l}.fa" for l in loci(w.orth)]
+    output: "results/concat/{orth}/{aln}/{trim}/supermatrix.fa"
+    shell: "python workflow/scripts/concat.py {output} {input}"
+
+rule concat_tree:
+    # LG+G4 and ModelFinder: --fast ML search. C20: PMSF approximation (Wang et al. 2018) of
+    # LG+C20+F+G4, using the LG+G4 tree of the same supermatrix as guide tree.
+    input:
+        aln="results/concat/{orth}/{aln}/{trim}/supermatrix.fa",
+        guide=lambda w: f"results/ctree/{w.orth}/{w.aln}/{w.trim}/LG.treefile" if w.cm == "C20" else []
+    output: "results/ctree/{orth}/{aln}/{trim}/{cm}.treefile"
+    wildcard_constraints: cm="LG|MFP|C20"
+    # C20 needs up to ~10 GB RAM with 23 taxa x ~25k sites: run with --resources mem_gb=<available>
+    threads: lambda w: 3 if w.cm == "C20" else 1
+    resources: mem_gb=lambda w: 11 if w.cm == "C20" else 1
+    params:
+        pre=lambda w: f"results/ctree/{w.orth}/{w.aln}/{w.trim}/{w.cm}",
+        m=lambda w, input: {"LG": "LG+G4 --fast", "MFP": f"MFP -mset {MSET} --fast",
+                            "C20": f"LG+C20+F+G4 -ft {input.guide} --fast"}[w.cm]
+    shell: "iqtree3 -s {input.aln} -m {params.m} -T {threads} -seed 1 --prefix {params.pre} -quiet -redo > /dev/null 2>&1"
+
+rule gene_tree_set:
+    input: gene_trees
+    output: "results/gtsets/{orth}/{aln}/{trim}/{gm}.trees"
+    shell: "cat {input} | grep ';' > {output}"
+
+rule concordance:
+    input:
+        tree="results/ctree/{orth}/{aln}/{trim}/{cm}.treefile",
+        aln="results/concat/{orth}/{aln}/{trim}/supermatrix.fa",
+        gts=lambda w: f"results/gtsets/{w.orth}/{w.aln}/{w.trim}/{'LG' if w.cm=='LG' else 'MFP'}.trees"
+    output: "results/ctree/{orth}/{aln}/{trim}/{cm}.cf.cf.stat"
+    params: pre=lambda w: f"results/ctree/{w.orth}/{w.aln}/{w.trim}/{w.cm}.cf"
+    shell: "iqtree3 -te {input.tree} -s {input.aln} --gcf {input.gts} --scf 100 -T 1 -seed 1 --prefix {params.pre} -quiet -redo > /dev/null 2>&1"
+
+rule astral:
+    input: "results/gtsets/{orth}/{aln}/{trim}/{gm}.trees"
+    output: "results/astral/{orth}/{aln}/{trim}/{gm}.tre"
+    shell: "astral4 -i {input} -o {output} -t 1 > /dev/null 2>&1"

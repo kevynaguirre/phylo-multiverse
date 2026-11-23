@@ -1,0 +1,54 @@
+# Locus-number gradient: gene trees computed once per pool locus; each subsample (results/grad/*.txt)
+# selects its loci for ASTRAL and for the concatenated supermatrix.
+import os, glob
+configfile: "workflow/config.yaml"
+MSET = config["mset"] + " -mrate " + config["mrate"]
+SUBS = sorted(os.path.basename(f)[:-4] for f in glob.glob("results/grad/*.txt"))
+def pset(sub): return sub.rsplit("-", 1)[0]
+def loci(sub): return open(f"results/grad/{sub}.txt").read().split()
+
+rule all:
+    input:
+        expand("results/gctree/{sub}/{cm}.treefile", sub=SUBS, cm=["LG", "MFP"]),
+        expand("results/gastral/{sub}/{gm}.tre", sub=SUBS, gm=["LG", "MFP"])
+
+rule align:
+    input: "results/pool/{set}/{locus}.fa"
+    output: "results/galn/{set}/{locus}.fa"
+    shell: "mafft --localpair --maxiterate 1000 --quiet --thread 1 {input} > {output}"
+
+rule gene_tree:
+    input: "results/galn/{set}/{locus}.fa"
+    output: "results/ggt/{set}/{gm}/{locus}.treefile"
+    params:
+        pre=lambda w: f"results/ggt/{w.set}/{w.gm}/{w.locus}",
+        m=lambda w: "LG+G4" if w.gm == "LG" else f"MFP -mset {MSET}"
+    shell:
+        "iqtree3 -s {input} -m {params.m} --fast -T 1 -seed 1 --prefix {params.pre} -quiet -redo > /dev/null 2>&1 || true; "
+        "touch {output}; rm -f {params.pre}.ckp.gz {params.pre}.mldist {params.pre}.bionj {params.pre}.model.gz {params.pre}.uniqueseq.phy {params.pre}.log {params.pre}.iqtree"
+
+rule astral:
+    input:
+        lst="results/grad/{sub}.txt",
+        gts=lambda w: [f"results/ggt/{pset(w.sub)}/{w.gm}/{l}.treefile" for l in loci(w.sub)]
+    output: "results/gastral/{sub}/{gm}.tre"
+    params: tmp=lambda w: f"results/gastral/{w.sub}/{w.gm}.trees"
+    shell: "cat {input.gts} | grep ';' > {params.tmp}; astral4 -i {params.tmp} -o {output} -t 1 > /dev/null 2>&1"
+
+rule concat:
+    input:
+        lst="results/grad/{sub}.txt",
+        alns=lambda w: [f"results/galn/{pset(w.sub)}/{l}.fa" for l in loci(w.sub)]
+    output: "results/gconcat/{sub}/supermatrix.fa"
+    shell: "python workflow/scripts/concat.py {output} {input.alns}"
+
+rule concat_tree:
+    input: "results/gconcat/{sub}/supermatrix.fa"
+    output: "results/gctree/{sub}/{cm}.treefile"
+    # memory: ~3.5 GB per 400-locus supermatrix; full pools are run alone with a RAM cap (-mem)
+    threads: lambda w: 4 if w.sub.endswith("-all") else (2 if "-n400" in w.sub else 1)
+    params:
+        pre=lambda w: f"results/gctree/{w.sub}/{w.cm}",
+        mem=lambda w: "-mem 11G" if w.sub.endswith("-all") else "",
+        m=lambda w: "LG+G4" if w.cm == "LG" else f"MFP -mset {MSET}"
+    shell: "iqtree3 -s {input} -m {params.m} --fast -T {threads} {params.mem} -seed 1 --prefix {params.pre} -quiet -redo > /dev/null 2>&1; rm -f {params.pre}.ckp.gz {params.pre}.mldist {params.pre}.bionj"

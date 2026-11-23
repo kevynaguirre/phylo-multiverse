@@ -1,0 +1,8 @@
+# Replicate-subsample extension of the pilot (2026-11-21). Use together with config.yaml:
+#   snakemake -s workflow/Snakefile --configfile workflow/config_reps.yaml ...
+# r0 = the original pilot subsample; r1..rR = disjoint new subsamples of 50 loci.
+# Aligner and trimming explained <1% of topological variance in the pilot, so the replicate
+# runs use a reduced crossing: MAFFT L-INS-i x {no trimming, ClipKIT} x all 5 inference methods.
+replicates: [0, 1, 2, 3, 4, 5]
+aligners: [mafft]
+trimmers: [none, clipkit]

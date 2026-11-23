@@ -1,0 +1,8 @@
+.snakemake/
+__pycache__/
+*.pyc
+results/
+data/proteomes/
+data/of_out/
+data/busco_out/
+data/busco_downloads/

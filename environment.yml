@@ -1,0 +1,25 @@
+# Software environment used for the analyses (versions of the Experiment 1 installation).
+# MUSCLE v5 must also be on PATH (we used muscle 5.2; the conda "muscle" package may install v3).
+name: phylo-multiverse
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - python=3.11
+  - snakemake-minimal=9.27.2
+  - orthofinder=3.2
+  - diamond=2.2.8
+  - busco=5.8.3
+  - mafft=7.526
+  - famsa=2.4.1
+  - trimal=1.5.1
+  - clipkit=2.14.0
+  - bmge=1.12
+  - iqtree=3.1.4
+  - aster=1.25
+  - dendropy=5.1.3
+  - numpy
+  - pandas
+  - matplotlib
+  - pyyaml
+  - brotli-python

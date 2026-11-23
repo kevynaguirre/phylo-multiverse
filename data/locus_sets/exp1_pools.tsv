@@ -1,0 +1,4 @@
+set	pool_size	sampled	mean_occupancy_sampled
+of_strict	933	50	23.0
+of_relaxed	1709	50	22.4
+busco	1947	50	21.8
